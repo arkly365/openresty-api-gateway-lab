@@ -1,0 +1,107 @@
+version: "3.9"
+
+services:
+  gateway:
+    build:
+      context: ./openresty
+      dockerfile: Dockerfile
+    image: gateway-lab-openresty:latest
+    container_name: gateway
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: dev
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: my_jwt_secret_123456789012345678901234
+      GATEWAY_API_KEY: abc123
+    volumes:
+      - ./openresty/conf:/usr/local/openresty/nginx/conf:ro
+      - ./openresty/lua:/usr/local/openresty/nginx/lua:ro
+      - ./openresty/logs:/usr/local/openresty/nginx/logs
+    depends_on:
+      - redis
+      - backend-a
+      - backend-b
+      - backend-echo
+      - slow-backend
+    networks:
+      - labnet
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - labnet
+
+  backend-a:
+    image: nginx:alpine
+    container_name: backend-a
+    volumes:
+      - ./backend-a/index.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - labnet
+
+  backend-b:
+    image: nginx:alpine
+    container_name: backend-b
+    volumes:
+      - ./backend-b/index.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - labnet
+
+  backend-echo:
+    image: ealen/echo-server
+    container_name: backend-echo
+    networks:
+      - labnet
+      
+  slow-backend:
+    image: node:20-alpine
+    container_name: slow-backend
+    command: >
+        sh -c "node -e '
+        const http = require(\"http\");
+        const server = http.createServer((req, res) => {
+          if (req.url === \"/slow\") {
+            setTimeout(() => {
+              res.writeHead(200, {\"Content-Type\": \"text/plain\"});
+              res.end(\"slow response finished\");
+            }, 5000);
+          } else {
+            res.writeHead(200, {\"Content-Type\": \"text/plain\"});
+            res.end(\"slow backend ok\");
+          }
+        });
+        server.listen(80, () => console.log(\"slow-backend listening on 80\"));
+        '"
+    networks:
+      - labnet
+      
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - gateway
+    networks:
+      - labnet
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - labnet
+
+networks:
+  labnet:
+    driver: bridge
