@@ -1,3 +1,5 @@
+# OpenResty API Gateway Lab
+
 A **production-style API Gateway Lab** built with:
 
 - OpenResty
