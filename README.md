@@ -8,57 +8,64 @@ A **production-style API Gateway Lab** built with:
 - NGINX
 - Prometheus Metrics
 
-This project explores how modern API gateways work internally by implementing key gateway features **from scratch**.
+This project explores how modern API gateways work internally by implementing core gateway features **from scratch**.
 
-It is designed as both:
+It serves as:
 
 - a **hands-on learning project**
-- a **technical portfolio project**
+- a **backend engineering portfolio project**
 
 Inspired by real gateway systems such as:
 
 - Kong
 - Apache APISIX
 - Envoy
-- NGINX Gateway
+- NGINX-based API Gateway
 
 ---
 
 # Project Goals
 
-Instead of only reading documentation, this project was created to deeply understand:
+Most gateway tutorials only explain concepts.
 
-- how API gateways process requests
-- how plugin systems work
-- how traffic control strategies are implemented
-- how reliability mechanisms are designed
-- how observability metrics are exposed
+This project focuses on **building a mini API gateway implementation** to deeply understand:
+
+- plugin architecture
+- request lifecycle inside NGINX/OpenResty
+- traffic routing strategies
+- reliability mechanisms
+- observability metrics
 
 The gateway is implemented using **OpenResty + Lua plugin architecture**.
 
 ---
 
-# System Overview
+# System Architecture
 
+            ┌─────────────────────┐
+            │        Client       │
+            └──────────┬──────────┘
+                       │
+                       ▼
+            ┌─────────────────────┐
+            │   OpenResty Gateway │
+            └──────────┬──────────┘
+                       │
+    ┌──────────────────┼──────────────────┐
+    │                  │                  │
+    ▼                  ▼                  ▼
 
-Client
-│
-▼
-OpenResty Gateway
-│
-├─ Plugin Runner
-│
-├─ Traffic Router
-│
-├─ Canary Routing
-│
-├─ Blue/Green Routing
-│
-├─ Shadow Traffic Executor
-│
-├─ Metrics Collector
-│
-└─ Logger
+Plugin Runner Traffic Router Metrics
+│ │ │
+│ ▼ │
+│ Routing Policies │
+│ ├─ Weighted Routing │
+│ ├─ Canary Routing │
+│ ├─ Blue / Green Routing │
+│ └─ Shadow Routing │
+│ │
+▼ ▼
+Shadow Executor Logger
 │
 ▼
 Upstream Services
@@ -66,15 +73,40 @@ Upstream Services
 
 ---
 
-# Core Gateway Concepts Implemented
+# Gateway Request Lifecycle
 
-This lab demonstrates several important gateway engineering concepts.
+The gateway processes requests through **NGINX/OpenResty phases**.
 
-## Plugin Architecture
 
-A modular plugin execution system built using Lua.
+Client Request
+│
+▼
+NGINX access phase
+│
+▼
+Plugin Runner
+│
+├─ Authentication Plugins
+├─ Security Plugins
+├─ Traffic Routing
+│
+▼
+Upstream Request
+│
+▼
+Response Processing
+│
+├─ Metrics
+└─ Logging
 
-Gateway execution phases:
+
+---
+
+# Plugin Architecture
+
+The gateway implements a **custom Lua plugin framework**.
+
+Plugins run inside OpenResty request phases.
 
 
 access phase
@@ -82,16 +114,17 @@ header_filter phase
 log phase
 
 
-Core components:
+Core framework files:
 
 
 plugin_runner.lua
 policy_engine.lua
 decision_context.lua
 route_config.lua
+traffic_context.lua
 
 
-Plugins implemented:
+Plugin modules:
 
 
 traffic_router.lua
@@ -104,29 +137,45 @@ metrics.lua
 logger.lua
 
 
-The plugin system allows flexible extension of gateway behaviors.
+This modular architecture allows gateway features to be implemented independently.
 
 ---
 
-# Traffic Control Flow
+# Traffic Control Strategies
 
-This gateway implements several traffic management strategies.
+This lab implements multiple real-world traffic routing patterns.
+
+---
 
 ## Weighted Routing
 
-Traffic is distributed across multiple upstream services based on configured weights.
+Traffic is distributed across upstream services using configured weights.
 
-This allows simple load balancing and gradual rollout.
+
+Client Request
+│
+▼
+Weighted Router
+│
+├─ backend-a (70%)
+└─ backend-b (30%)
+
+
+Example test:
+
+
+curl http://localhost:8080/svc/a-weighted
+
 
 ---
 
 ## Canary Release
 
-Supports multiple canary strategies:
+Supports several canary deployment strategies:
 
-- Header-based canary routing
-- Percentage-based canary routing
-- Hybrid routing
+- header-based routing
+- percentage-based routing
+- hybrid routing
 
 Example:
 
@@ -138,18 +187,29 @@ curl -H "X-Canary: always" http://localhost:8080/svc/a-canary
 
 ## Blue / Green Deployment
 
-Traffic can switch between **blue** and **green** environments.
+Traffic switches between two environments.
 
-This deployment strategy enables:
+      ┌───────────┐
 
-- safe release switching
-- instant rollback capability
+Request → │ Router │
+└─────┬─────┘
+│
+┌───────┴───────┐
+▼ ▼
+Blue Service Green Service
+
+
+Example:
+
+
+curl http://localhost:8080/svc/a-bluegreen
+
 
 ---
 
 ## Shadow Traffic (Traffic Mirroring)
 
-Production traffic can be mirrored asynchronously to a **shadow upstream**.
+Production traffic can be mirrored asynchronously to a shadow service.
 
 
 Client Request
@@ -157,36 +217,58 @@ Client Request
 ▼
 Primary Upstream
 │
-├── Response returned to client
+├─ Response → Client
 │
-└── Async mirror request
+└─ Async Mirror
 │
 ▼
 Shadow Service
 
 
-Shadow traffic allows testing new services **without affecting real users**.
+Shadow traffic allows testing new services safely without affecting real users.
+
+Example:
+
+
+curl http://localhost:8080/svc/a-shadow
+
 
 ---
 
 # Reliability Mechanisms
 
-This lab includes reliability patterns commonly used in production gateways.
+This gateway implements several reliability patterns used in production systems.
+
+
+Request
+│
+▼
+Timeout Protection
+│
+▼
+Retry Policy
+│
+▼
+Failover Routing
+│
+▼
+Circuit Breaker
+
 
 Supported mechanisms:
 
-- Timeout protection
-- Retry policy
-- Failover routing
-- Circuit breaker
+- timeout protection
+- retry
+- upstream failover
+- circuit breaker
 
-These features simulate resilient gateway behavior when upstream services become unstable.
+These patterns help maintain service availability when upstream services become unstable.
 
 ---
 
 # Observability
 
-The gateway exposes **Prometheus-style metrics**.
+The gateway exposes **Prometheus-compatible metrics**.
 
 Example metrics:
 
@@ -198,6 +280,7 @@ gateway_upstream_response_ms
 gateway_canary_requests_total
 gateway_blue_green_requests_total
 gateway_shadow_mirror_requests_total
+gateway_shadow_mirror_latency_ms_sum
 
 
 Metrics endpoint:
@@ -206,7 +289,7 @@ Metrics endpoint:
 http://localhost:8080/metrics
 
 
-These metrics can be scraped by **Prometheus** and visualized using **Grafana**.
+These metrics can be scraped by **Prometheus** and visualized with **Grafana**.
 
 ---
 
@@ -222,10 +305,10 @@ This context stores:
 
 - routing decisions
 - selected upstream
-- shadow routing decisions
+- shadow routing decision
 - request metadata
 
-This design allows plugins to collaborate without tight coupling.
+This allows plugins to cooperate without tight coupling.
 
 ---
 
@@ -263,23 +346,19 @@ openresty-api-gateway-lab/
 
 # Running the Lab
 
-## Start Services
+Start services:
 
 
 docker compose up -d
 
 
----
-
-## Gateway Endpoint
+Gateway endpoint:
 
 
 http://localhost:8080
 
 
----
-
-## Metrics Endpoint
+Metrics endpoint:
 
 
 http://localhost:8080/metrics
@@ -295,15 +374,11 @@ http://localhost:8080/metrics
 curl http://localhost:8080/svc/a-weighted
 
 
----
-
 ### Canary Routing
 
 
 curl -H "X-Canary: always" http://localhost:8080/svc/a-canary
 
-
----
 
 ### Canary Percentage
 
@@ -311,15 +386,11 @@ curl -H "X-Canary: always" http://localhost:8080/svc/a-canary
 curl http://localhost:8080/svc/a-canary-pct
 
 
----
-
 ### Blue / Green Deployment
 
 
 curl http://localhost:8080/svc/a-bluegreen
 
-
----
 
 ### Shadow Traffic
 
@@ -334,11 +405,11 @@ curl http://localhost:8080/svc/a-shadow
 This project demonstrates several engineering practices:
 
 - building an API gateway from scratch
-- modular plugin execution
+- modular Lua plugin architecture
 - policy-driven traffic routing
 - asynchronous shadow traffic execution
-- Prometheus-compatible metrics
-- shared decision context across plugins
+- Prometheus metrics instrumentation
+- decision context sharing across plugins
 
 ---
 
@@ -350,19 +421,19 @@ By building this project, I explored:
 - Lua plugin architecture
 - NGINX request lifecycle
 - traffic routing strategies
-- reliability engineering patterns
-- metrics-driven observability
+- resilience engineering patterns
+- observability design
 
 ---
 
 # Future Improvements
 
-Possible future extensions:
+Potential future extensions:
 
-- Admin API for dynamic policy configuration
-- JWT / API key management improvements
-- Distributed tracing
-- Grafana dashboard improvements
+- admin API for dynamic routing policy
+- JWT / API key improvements
+- distributed tracing
+- Grafana dashboards
 - Kubernetes deployment
 - CI/CD pipeline integration
 
@@ -374,4 +445,4 @@ Possible future extensions:
 - Lua
 - NGINX
 - Docker
-- Prometheus Metrics
+- Prometheus metrics
