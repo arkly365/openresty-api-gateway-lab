@@ -41,7 +41,7 @@ The gateway is implemented using **OpenResty + Lua plugin architecture**.
 ---
 
 # System Architecture
-
+```text
             ┌─────────────────────┐
             │        Client       │
             └──────────┬──────────┘
@@ -51,26 +51,29 @@ The gateway is implemented using **OpenResty + Lua plugin architecture**.
             │   OpenResty Gateway │
             └──────────┬──────────┘
                        │
-    ┌──────────────────┼──────────────────┐
-    │                  │                  │
-    ▼                  ▼                  ▼
+       ┌───────────────┼───────────────┐
+       │               │               │
+       ▼               ▼               ▼
+  Plugin Runner   Traffic Router     Metrics
+       │
+       ▼
+   Routing Policies
+       │
+       ├─ Weighted Routing
+       ├─ Canary Routing
+       ├─ Blue / Green Routing
+       └─ Shadow Routing
+       │
+       ▼
+  Shadow Executor
+       │
+       ▼
+      Logger
+       │
+       ▼
+  Upstream Services
 
-Plugin Runner Traffic Router Metrics
-│ │ │
-│ ▼ │
-│ Routing Policies │
-│ ├─ Weighted Routing │
-│ ├─ Canary Routing │
-│ ├─ Blue / Green Routing │
-│ └─ Shadow Routing │
-│ │
-▼ ▼
-Shadow Executor Logger
-│
-▼
-Upstream Services
-
-
+```text
 ---
 
 # Gateway Request Lifecycle
@@ -189,14 +192,13 @@ curl -H "X-Canary: always" http://localhost:8080/svc/a-canary
 
 Traffic switches between two environments.
 
-      ┌───────────┐
-
-Request → │ Router │
-└─────┬─────┘
-│
-┌───────┴───────┐
-▼ ▼
-Blue Service Green Service
+           ┌────────────┐
+Request ──►│   Router   │
+           └─────┬──────┘
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+   Blue Service      Green Service
 
 
 Example:
